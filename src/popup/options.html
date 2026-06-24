@@ -20,7 +20,7 @@
       margin: 2em;
     }
 
-    ul#listOfURLsToExclude li .urlToClear {
+    ul#listOfURLsToInclude li .urlToClear {
       display: inline-block;
       position: absolute;
       left: 1px;
@@ -42,13 +42,13 @@
       <button type="submit">Save</button>
     </form>
     <hr>
-    <form id="excludeURL">
-      <label>Exclude URL:</label>
-      <input type="hidden" name="urlToExclude" id="urlToExclude" value=""></input>
+    <form id="includeURL">
+      <label>Include URL:</label>
+      <input type="hidden" name="urlToInclude" id="urlToInclude" value=""></input>
       <button type="submit" name="add">Add Current Page</button>
     </form>
-    <h5>List of Excluded URLs:</h5>
-    <ul id="listOfURLsToExclude">
+    <h5>List of Included URLs:</h5>
+    <ul id="listOfURLsToInclude">
 
     </ul>
     <hr>

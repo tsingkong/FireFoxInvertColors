@@ -6,9 +6,10 @@ function setColors(tabId) {
     });
 }
 
-function setColorsToState(tabId, state, imgNoInvert) {
+// ignoreWhitList: force invertColors
+function setColorsToState(tabId, state, imgNoInvert, ignoreWhitList) {
     if (state == true) {
-        invertColors(tabId);
+        invertColors(tabId, ignoreWhitList);
         if (imgNoInvert) invertImg(tabId);
     } else {
         revertImg(tabId);
@@ -24,7 +25,7 @@ function toggleColors(changeState, tab) {
             browser.sessions.getTabValue(tab.id, "invertColors").then(tabState => {
                 tabState = !tabState;
                 browser.sessions.getTabValue(tab.id, "imgNoInvert").then(imgNoInvert => {
-                    setColorsToState(tab.id, tabState, res.ImgColorNoInvert);
+                    setColorsToState(tab.id, tabState, res.ImgColorNoInvert, changeState);
                     setPageIconState(tab, tabState);
                 }, nullFunc());
             }, nullFunc());
@@ -40,7 +41,7 @@ function toggleColors(changeState, tab) {
 
             browser.tabs.query({}).then((tabs) => {
                 for (var tab of tabs) {
-                    setColorsToState(tab.id, state, res.ImgColorNoInvert);
+                    setColorsToState(tab.id, state, res.ImgColorNoInvert, changeState);
                 };
             });
         }
@@ -94,11 +95,11 @@ function setPageIconState(tab, state) {
 
 function invertImg(tabId) {
     if (tabId) {
-        browser.storage.local.get("urlList").then(function (res) {
-            res.urlList = res.urlList || {}
+        browser.storage.local.get("urlIncludeList").then(function (res) {
+            res.urlIncludeList = res.urlIncludeList || {}
 
             browser.tabs.get(tabId).then(function (tab) {
-                if (!(toBaseURL(tab.url) in res.urlList)) {
+                if (toBaseURL(tab.url) in res.urlIncludeList) {
                     browser.tabs.insertCSS(tabId, {
                         file: "image.css"
                     });
@@ -106,9 +107,11 @@ function invertImg(tabId) {
             });
         })
     } else {
+        /*
         browser.tabs.insertCSS(tabId, {
             file: "image.css"
         });
+        */
     }
 }
 
@@ -118,13 +121,14 @@ function revertImg(tabId) {
     });
 }
 
-function invertColors(tabId) {
+// force: force invert even not in whitelist
+function invertColors(tabId, force) {
     if (tabId) {
-        browser.storage.local.get("urlList").then(function (res) {
-            res.urlList = res.urlList || {}
+        browser.storage.local.get("urlIncludeList").then(function (res) {
+            res.urlIncludeList = res.urlIncludeList || {}
 
             browser.tabs.get(tabId).then(function (tab) {
-                if (!(toBaseURL(tab.url) in res.urlList)) {
+                if (force || (toBaseURL(tab.url) in res.urlIncludeList)) {
                     browser.tabs.insertCSS(tabId, {
                         file: "style.css"
                     });
@@ -132,9 +136,11 @@ function invertColors(tabId) {
             });
         })
     } else {
+        /*
         browser.tabs.insertCSS(tabId, {
             file: "style.css"
         });
+        */
     }
 }
 

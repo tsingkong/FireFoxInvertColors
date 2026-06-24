@@ -1,23 +1,23 @@
 function loadOptions() {
 	browser.storage.local.get().then((res) => {
-		showOption(res.InvertColorsState, res.ImgColorNoInvert, res.urlList);
+		showOption(res.InvertColorsState, res.ImgColorNoInvert, res.urlIncludeList);
 	});
 }
 
-function showOption(state, imgNoInvert, urlList) {
+function showOption(state, imgNoInvert, urlIncludeList) {
 	document.querySelector("#InvertColorsState").checked = state;
 	document.querySelector('#ImgColorNoInvert').checked = imgNoInvert;
 
-	document.querySelector('#listOfURLsToExclude').innerText = "";
+	document.querySelector('#listOfURLsToInclude').innerText = "";
 
-	for (let [url, action] of Object.entries(urlList)) {
+	for (let [url, action] of Object.entries(urlIncludeList)) {
 		let li = document.createElement("li");
 
 		var clear = document.createElement("span");
 		clear.setAttribute("id", url);
 		clear.setAttribute("class", "urlToClear");
 		clear.innerText = "[✗]";
-		clear.onclick = clearURLToExclusionList;
+		clear.onclick = clearURLToInclusionList;
 
 		var urlSpan = document.createElement("span");
 		urlSpan.innerText = url;
@@ -25,7 +25,7 @@ function showOption(state, imgNoInvert, urlList) {
 		li.appendChild(clear);
 		li.appendChild(urlSpan);
 
-		document.querySelector('#listOfURLsToExclude').appendChild(li);
+		document.querySelector('#listOfURLsToInclude').appendChild(li);
 	}
 }
 
@@ -38,27 +38,27 @@ function updateOptions(e) {
 	e.preventDefault();
 }
 
-function addURLToExclusionList(e) {
-	browser.storage.local.get("urlList").then(function (res) {
-		res.urlList = res.urlList || {}
-		res.urlList[document.querySelector('#urlToExclude').Value] = 'Exclude';
+function addURLToInclusionList(e) {
+	browser.storage.local.get("urlIncludeList").then(function (res) {
+		res.urlIncludeList = res.urlIncludeList || {}
+		res.urlIncludeList[document.querySelector('#urlToInclude').Value] = 'Include';
 		browser.storage.local.set({
-			"urlList": res.urlList
+			"urlIncludeList": res.urlIncludeList
 		});
 
 	})
 }
 
-function clearURLToExclusionList(e) {
+function clearURLToInclusionList(e) {
 	var url = e.target.id;
 
-	browser.storage.local.get("urlList").then(function (res) {
-		res.urlList = res.urlList || {}
+	browser.storage.local.get("urlIncludeList").then(function (res) {
+		res.urlIncludeList = res.urlIncludeList || {}
 
-		if (url in res.urlList) {
-			delete res.urlList[url];
+		if (url in res.urlIncludeList) {
+			delete res.urlIncludeList[url];
 			browser.storage.local.set({
-				"urlList": res.urlList
+				"urlIncludeList": res.urlIncludeList
 			});
 
 			loadOptions();
@@ -71,7 +71,7 @@ browser.tabs.query({
 	active: true,
 	currentWindow: true
 }).then(function (tabs) {
-	document.querySelector("#urlToExclude").Value = toBaseURL(tabs[0].url);
+	document.querySelector("#urlToInclude").Value = toBaseURL(tabs[0].url);
 });
 
 function toBaseURL(fullURL) {
@@ -81,4 +81,4 @@ function toBaseURL(fullURL) {
 document.addEventListener('DOMContentLoaded', loadOptions);
 document.querySelector("#mainForm").addEventListener("submit", updateOptions);
 
-document.querySelector("#excludeURL").addEventListener("submit", addURLToExclusionList);
+document.querySelector("#includeURL").addEventListener("submit", addURLToInclusionList);
