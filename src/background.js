@@ -1,22 +1,43 @@
 function nullFunc() {}
 
-function setColors(tabId) {
+/*
+function showDebugMessage(msg) {
+    browser.notifications.create("invertColorDebug", {
+        type: "basic",
+        iconUrl: browser.runtime.getURL("icons/on.svg"),
+        title: "Debug",
+        message: msg,
+      });
+}
+*/
+
+// set color for tabId by current setting
+function setTabColors(tabId) {
     browser.storage.local.get().then((res) => {
-        setColorsToState(tabId, res.InvertColorsState, res.ImgColorNoInvert);
+        setTabColorsToState(tabId, res.InvertColorsState, res.ImgColorNoInvert);
     });
 }
 
-// ignoreWhitList: force invertColors
-function setColorsToState(tabId, state, imgNoInvert, ignoreWhitList) {
+// 
+// ignoreWhitList: force invertTabColors
+async function setTabColorsToState(tabId, state, imgNoInvert, ignoreWhitList) {
+    let inverted = false;
     if (state == true) {
-        invertColors(tabId, ignoreWhitList);
-        if (imgNoInvert) invertImg(tabId);
-    } else {
-        revertImg(tabId);
-        revertColors(tabId);
+        inverted = await invertTabColors(tabId, ignoreWhitList);
+        if (inverted && imgNoInvert) {
+            invertTabImg(tabId, ignoreWhitList);
+        }
     }
-    browser.sessions.setTabValue(tabId, "invertColors", state).then(nullFunc(), nullFunc());
-    browser.sessions.setTabValue(tabId, "imgNoInvert", imgNoInvert).then(nullFunc(), nullFunc());
+
+    if (!inverted) {
+        revertTabImg(tabId);
+        revertTabColors(tabId);
+    }
+    await browser.sessions.setTabValue(tabId, "invertColors", inverted).then(nullFunc(), nullFunc());
+    await browser.sessions.setTabValue(tabId, "imgNoInvert", imgNoInvert).then(nullFunc(), nullFunc());
+
+    setPageIconState(tabId, inverted);
+    showDebugMessage("tabId:"+tabId+", state:"+state+", imgNoInvert:"+imgNoInvert+", inverted:"+inverted+", force:"+ignoreWhitList);
 }
 
 function toggleColors(changeState, tab) {
@@ -24,15 +45,12 @@ function toggleColors(changeState, tab) {
         if (tab) {
             browser.sessions.getTabValue(tab.id, "invertColors").then(tabState => {
                 tabState = !tabState;
-                browser.sessions.getTabValue(tab.id, "imgNoInvert").then(imgNoInvert => {
-                    setColorsToState(tab.id, tabState, res.ImgColorNoInvert, changeState);
-                    setPageIconState(tab, tabState);
-                }, nullFunc());
+                setTabColorsToState(tab.id, tabState, res.ImgColorNoInvert, changeState);
             }, nullFunc());
         } else {
             var state = res.InvertColorsState ? res.InvertColorsState : false;
             state = changeState ? !state : state;
-            setIconState(state);
+            setActionBarIconState(state);
 
             browser.storage.local.set({
                 InvertColorsState: state,
@@ -41,7 +59,7 @@ function toggleColors(changeState, tab) {
 
             browser.tabs.query({}).then((tabs) => {
                 for (var tab of tabs) {
-                    setColorsToState(tab.id, state, res.ImgColorNoInvert, changeState);
+                    setTabColorsToState(tab.id, state, res.ImgColorNoInvert, changeState);
                 };
             });
         }
@@ -53,7 +71,8 @@ function toggleColorsContextMenu(tabInfo, onClickData) {
     toggleColors(true, tabInfo);
 }
 
-function setIconState(state) {
+// set action bar icon
+function setActionBarIconState(state) {
     if (state) {
         browser.browserAction.setIcon({
             path: "icons/on.svg"
@@ -71,35 +90,35 @@ function setIconState(state) {
     }
 }
 
-function setPageIconState(tab, state) {
+function setPageIconState(tabId, state) {
     if (state) {
         browser.pageAction.setIcon({
-            tabId: tab.id,
+            tabId: tabId,
             path: "icons/on.svg"
         });
         browser.pageAction.setTitle({
-            tabId: tab.id,
+            tabId: tabId,
             title: "Revert Current Page Colors"
         });
     } else {
         browser.pageAction.setIcon({
-            tabId: tab.id,
+            tabId: tabId,
             path: "icons/off.svg"
         });
         browser.pageAction.setTitle({
-            tabId: tab.id,
+            tabId: tabId,
             title: "Invert Current Page Colors"
         });
     }
 }
 
-function invertImg(tabId) {
+function invertTabImg(tabId, force) {
     if (tabId) {
         browser.storage.local.get("urlIncludeList").then(function (res) {
             res.urlIncludeList = res.urlIncludeList || {}
 
             browser.tabs.get(tabId).then(function (tab) {
-                if (toBaseURL(tab.url) in res.urlIncludeList) {
+                if (force || toBaseURL(tab.url) in res.urlIncludeList) {
                     browser.tabs.insertCSS(tabId, {
                         file: "image.css"
                     });
@@ -115,26 +134,22 @@ function invertImg(tabId) {
     }
 }
 
-function revertImg(tabId) {
+function revertTabImg(tabId) {
     browser.tabs.removeCSS(tabId, {
         file: "image.css"
     });
 }
 
 // force: force invert even not in whitelist
-function invertColors(tabId, force) {
+async function invertTabColors(tabId, force) {
+    toInvert = false;
     if (tabId) {
-        browser.storage.local.get("urlIncludeList").then(function (res) {
-            res.urlIncludeList = res.urlIncludeList || {}
-
-            browser.tabs.get(tabId).then(function (tab) {
-                if (force || (toBaseURL(tab.url) in res.urlIncludeList)) {
-                    browser.tabs.insertCSS(tabId, {
-                        file: "style.css"
-                    });
-                }
-            });
-        })
+        let res = await browser.storage.local.get("urlIncludeList");
+        res.urlIncludeList = res.urlIncludeList || {};
+        let tab = await browser.tabs.get(tabId);
+        if (force || (toBaseURL(tab.url) in res.urlIncludeList)) {
+            toInvert = true;
+        }
     } else {
         /*
         browser.tabs.insertCSS(tabId, {
@@ -142,18 +157,24 @@ function invertColors(tabId, force) {
         });
         */
     }
+    if (toInvert) {
+        browser.tabs.insertCSS(tabId, {
+            file: "style.css"
+        });
+    }
+    return toInvert;
 }
 
-function revertColors(tabId) {
+function revertTabColors(tabId) {
     browser.tabs.removeCSS(tabId, {
         file: "style.css"
     });
 }
 
-function handleUpdated(tabId, changeInfo, tabInfo) {
+function handleTabUpdated(tabId, changeInfo, tabInfo) {
     browser.pageAction.show(tabId);
     if (changeInfo.status) {
-        setColors(tabId);
+        setTabColors(tabId);
     }
 }
 
@@ -163,11 +184,11 @@ function handleStorageUpdate(changes, area) {
             if (item == "InvertColorsState" || item == "ImgColorNoInvert") {
                 browser.storage.local.get().then((res) => {
                     var state = res.InvertColorsState ? res.InvertColorsState : false;
-                    setIconState(state);
+                    setActionBarIconState(state);
 
                     browser.tabs.query({}).then((tabs) => {
                         for (var tab of tabs) {
-                            setColorsToState(tab.id, state, res.ImgColorNoInvert);
+                            setTabColorsToState(tab.id, state, res.ImgColorNoInvert);
                         };
                     });
                 });
@@ -185,7 +206,7 @@ browser.contextMenus.create({
     title: "Invert Colors"
 });
 
-browser.tabs.onUpdated.addListener(handleUpdated);
+browser.tabs.onUpdated.addListener(handleTabUpdated);
 browser.storage.onChanged.addListener(handleStorageUpdate);
 browser.pageAction.onClicked.addListener((tab) => {
     toggleColors(true, tab);
